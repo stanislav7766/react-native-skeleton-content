@@ -1,8 +1,8 @@
 import { StyleProp, ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-type _animationType = 'none' | 'shiver' | 'pulse' | undefined;
-type _animationDirection =
+export type _animationType = 'none' | 'shiver' | 'pulse' | undefined;
+export type _animationDirection =
   | 'horizontalLeft'
   | 'horizontalRight'
   | 'verticalTop'
