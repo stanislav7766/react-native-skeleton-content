@@ -66,17 +66,13 @@ function SkeletonContent({
   const animationValue = useDerivedValue(() => {
     if (isLoading) return 0;
     if (animationType === 'shiver') {
-      return withRepeat(withTiming(duration!), -1);
+      return withRepeat(withTiming(duration), -1);
     }
-    return withRepeat(withTiming(duration! / 2), -1);
+    return withRepeat(withTiming(duration / 2), -1);
   }, [isLoading, animationType, duration]);
 
   const backgroundPulseColor = useDerivedValue(() =>
-    interpolateColor(
-      animationValue.value,
-      [0, 1],
-      [boneColor!, highlightColor!]
-    )
+    interpolateColor(animationValue.value, [0, 1], [boneColor, highlightColor])
   );
 
   const getBoneWidth = (boneLayout: ICustomViewStyle): number =>
@@ -321,7 +317,7 @@ function SkeletonContent({
       <View key={layoutStyle.key || key} style={getBoneStyles(layoutStyle)}>
         <Animated.View style={[styles.absoluteGradient, animatedStyle]}>
           <LinearGradient
-            colors={[boneColor!, highlightColor!, boneColor!]}
+            colors={[boneColor, highlightColor, boneColor]}
             start={{ x: 0, y: 0 }}
             end={getGradientEndDirection(layoutStyle)}
             style={styles.gradientChild}
@@ -367,7 +363,7 @@ function SkeletonContent({
 
   return (
     <View style={containerStyle} onLayout={onLayout}>
-      {isLoading ? getBones(layout!, children) : children}
+      {isLoading ? getBones(layout, children) : children}
     </View>
   );
 }
