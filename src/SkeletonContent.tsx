@@ -2,7 +2,7 @@ import * as React from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-  interpolateColor,
+  interpolate,
   interpolateNode,
   useDerivedValue,
   withRepeat,
@@ -50,6 +50,102 @@ const useLayout = () => {
   return [size, onLayout];
 };
 
+function hexToRGBA(hw: string) {
+  'worklet';
+
+  if (hw.length === 4) {
+    return {
+      r: parseInt(hw.substr(1, 1), 16),
+      g: parseInt(hw.substr(2, 1), 16),
+      b: parseInt(hw.substr(3, 1), 16),
+      a: 1,
+    };
+  }
+  const r = parseInt(hw.slice(1, 3), 16);
+  const g = parseInt(hw.slice(3, 5), 16);
+  const b = parseInt(hw.slice(5, 7), 16);
+  const a = hw.length === 9 ? parseInt(hw.slice(7, 9), 16) / 255 : 1;
+
+  return {
+    r,
+    g,
+    b,
+    a,
+  };
+}
+
+function colorToRGBA(
+  color:
+    | string
+    | { r: number; g: number; b: number }
+    | { r: number; g: number; b: number; a: number }
+) {
+  'worklet';
+
+  if (typeof color === 'string') {
+    if (color.startsWith('rgba(')) {
+      const colorProcessed = color.split('(')[1].split(')')[0].split(',');
+      return {
+        r: parseInt(colorProcessed[0].trim(), 10),
+        g: parseInt(colorProcessed[1].trim(), 10),
+        b: parseInt(colorProcessed[2].trim(), 10),
+        a: parseInt(colorProcessed[3].trim(), 10),
+      };
+    }
+    if (color.startsWith('rgb(')) {
+      const colorProcessed = color.split('(')[1].split(')')[0].split(',');
+      return {
+        r: parseInt(colorProcessed[0].trim(), 10),
+        g: parseInt(colorProcessed[1].trim(), 10),
+        b: parseInt(colorProcessed[2].trim(), 10),
+        a: 1,
+      };
+    }
+    return hexToRGBA(color);
+  }
+  return {
+    r: color.r,
+    g: color.g,
+    b: color.b,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    a: Object.keys(color).includes('a') ? color.a : 1,
+  };
+}
+
+function interpolateColorBugFix(
+  value: number,
+  inputRange: readonly number[],
+  outputRange: readonly (string | number)[]
+) {
+  'worklet';
+
+  const outputRangeProcessed = outputRange.map((i) => colorToRGBA(i as string));
+  const values = {
+    r: interpolate(
+      value,
+      inputRange,
+      outputRangeProcessed.map((i) => i.r)
+    ),
+    g: interpolate(
+      value,
+      inputRange,
+      outputRangeProcessed.map((i) => i.g)
+    ),
+    b: interpolate(
+      value,
+      inputRange,
+      outputRangeProcessed.map((i) => i.b)
+    ),
+    a: interpolate(
+      value,
+      inputRange,
+      outputRangeProcessed.map((i) => i.a)
+    ),
+  };
+  return `rgba(${values.r},${values.g},${values.b}, ${values.a})`;
+}
+
 function SkeletonContent({
   containerStyle = styles.container,
   duration = DEFAULT_DURATION,
@@ -66,13 +162,17 @@ function SkeletonContent({
   const animationValue = useDerivedValue(() => {
     if (isLoading) return 0;
     if (animationType === 'shiver') {
-      return withRepeat(withTiming(duration), -1);
+      return withRepeat(withTiming(duration!), -1);
     }
-    return withRepeat(withTiming(duration / 2), -1);
+    return withRepeat(withTiming(duration! / 2), -1);
   }, [isLoading, animationType, duration]);
 
   const backgroundPulseColor = useDerivedValue(() =>
-    interpolateColor(animationValue.value, [0, 1], [boneColor, highlightColor])
+    interpolateColorBugFix(
+      animationValue.value,
+      [0, 1],
+      [boneColor!, highlightColor!]
+    )
   );
 
   const getBoneWidth = (boneLayout: ICustomViewStyle): number =>
@@ -317,7 +417,7 @@ function SkeletonContent({
       <View key={layoutStyle.key || key} style={getBoneStyles(layoutStyle)}>
         <Animated.View style={[styles.absoluteGradient, animatedStyle]}>
           <LinearGradient
-            colors={[boneColor, highlightColor, boneColor]}
+            colors={[boneColor!, highlightColor!, boneColor!]}
             start={{ x: 0, y: 0 }}
             end={getGradientEndDirection(layoutStyle)}
             style={styles.gradientChild}
@@ -363,7 +463,7 @@ function SkeletonContent({
 
   return (
     <View style={containerStyle} onLayout={onLayout}>
-      {isLoading ? getBones(layout, children) : children}
+      {isLoading ? getBones(layout!, children) : children}
     </View>
   );
 }
