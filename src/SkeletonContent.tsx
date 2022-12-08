@@ -5,7 +5,6 @@ import Animated, {
   interpolateColor,
   interpolateNode,
   useDerivedValue,
-  useSharedValue,
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
@@ -62,9 +61,15 @@ function SkeletonContent({
   highlightColor = DEFAULT_HIGHLIGHT_COLOR,
   children,
 }: ISkeletonContentProps) {
-  let animationValue = useSharedValue(0);
-
   const [componentSize, onLayout] = useLayout();
+
+  const animationValue = useDerivedValue(() => {
+    if (isLoading) return 0;
+    if (animationType === 'shiver') {
+      return withRepeat(withTiming(duration!), -1);
+    }
+    return withRepeat(withTiming(duration! / 2), -1);
+  }, [isLoading, animationType, duration]);
 
   const backgroundPulseColor = useDerivedValue(() =>
     interpolateColor(
@@ -73,14 +78,6 @@ function SkeletonContent({
       [boneColor!, highlightColor!]
     )
   );
-
-  animationValue = useDerivedValue(() => {
-    if (isLoading) return 0;
-    if (animationType === 'shiver') {
-      return withRepeat(withTiming(duration!), -1);
-    }
-    return withRepeat(withTiming(duration! / 2), -1);
-  }, [isLoading, animationType, duration]);
 
   const getBoneWidth = (boneLayout: ICustomViewStyle): number =>
     (typeof boneLayout.width === 'string'
