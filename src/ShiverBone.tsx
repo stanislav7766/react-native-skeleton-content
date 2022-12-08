@@ -2,8 +2,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
-  interpolateNode,
+  interpolate,
   useAnimatedStyle,
+  useDerivedValue,
 } from 'react-native-reanimated';
 import {
   ICustomViewStyle,
@@ -101,31 +102,35 @@ function ShiverBone({
   const positionRange = React.useMemo((): number[] => {
     const outputRange: number[] = [];
     if (animationDirection === 'horizontalRight') {
-      outputRange.push(-boneWidth, +boneWidth);
-    } else if (animationDirection === 'horizontalLeft') {
-      outputRange.push(+boneWidth, -boneWidth);
-    } else if (animationDirection === 'verticalDown') {
-      outputRange.push(-boneHeight, +boneHeight);
-    } else if (animationDirection === 'verticalTop') {
-      outputRange.push(+boneHeight, -boneHeight);
+      return [-boneWidth, +boneWidth];
+    }
+    if (animationDirection === 'horizontalLeft') {
+      return [+boneWidth, -boneWidth];
+    }
+    if (animationDirection === 'verticalDown') {
+      return [-boneHeight, +boneHeight];
+    }
+    if (animationDirection === 'verticalTop') {
+      return [+boneHeight, -boneHeight];
     }
     return outputRange;
   }, [animationDirection, boneHeight, boneWidth]);
 
   const gradientEndDirection = React.useMemo((): IDirection => {
-    let direction = { x: 0, y: 0 };
     if (animationType === 'shiver') {
       if (
         animationDirection === 'horizontalLeft' ||
         animationDirection === 'horizontalRight'
       ) {
-        direction = { x: 1, y: 0 };
-      } else if (
+        return { x: 1, y: 0 };
+      }
+      if (
         animationDirection === 'verticalTop' ||
         animationDirection === 'verticalDown'
       ) {
-        direction = { x: 0, y: 1 };
-      } else if (
+        return { x: 0, y: 1 };
+      }
+      if (
         animationDirection === 'diagonalTopRight' ||
         animationDirection === 'diagonalDownRight' ||
         animationDirection === 'diagonalDownLeft' ||
@@ -136,8 +141,115 @@ function ShiverBone({
         return { x: 1, y: 0 };
       }
     }
-    return direction;
+    return { x: 0, y: 0 };
   }, [animationDirection, animationType, boneHeight, boneWidth]);
+
+  const translateYAnim1 = useDerivedValue(() => {
+    return interpolate(animationValue.value, [0, 1], positionRange);
+  }, [animationValue.value, positionRange]);
+
+  const diagonal = React.useMemo(() => {
+    return Math.sqrt(boneHeight * boneHeight + boneWidth * boneWidth);
+  }, [boneHeight, boneWidth]);
+
+  const mainDimension = React.useMemo(
+    () => Math.max(boneHeight, boneWidth),
+    [boneHeight, boneWidth]
+  );
+
+  const oppositeDimension = React.useMemo(
+    () => (mainDimension === boneWidth ? boneHeight : boneWidth),
+    [boneHeight, boneWidth, mainDimension]
+  );
+
+  const diagonalAngle = React.useMemo(
+    () => Math.acos(mainDimension / diagonal),
+    [diagonal, mainDimension]
+  );
+
+  const distanceFactor = React.useMemo(
+    () => (diagonal + oppositeDimension) / 2,
+    [diagonal, oppositeDimension]
+  );
+
+  const rotateAngle = React.useMemo(() => {
+    let rotateAngle1 =
+      animationDirection === 'diagonalDownRight' ||
+      animationDirection === 'diagonalTopLeft'
+        ? Math.PI / 2 - diagonalAngle
+        : Math.PI / 2 + diagonalAngle;
+    const additionalRotate =
+      animationDirection === 'diagonalDownRight' ||
+      animationDirection === 'diagonalTopLeft'
+        ? 2 * diagonalAngle
+        : -2 * diagonalAngle;
+    if (mainDimension === boneWidth && boneWidth !== boneHeight)
+      rotateAngle1 += additionalRotate;
+
+    return rotateAngle1;
+  }, [animationDirection, boneHeight, boneWidth, diagonalAngle, mainDimension]);
+
+  const sinComponent = React.useMemo(
+    () => Math.sin(diagonalAngle) * distanceFactor,
+    [diagonalAngle, distanceFactor]
+  );
+
+  const cosComponent = React.useMemo(
+    () => Math.cos(diagonalAngle) * distanceFactor,
+    [diagonalAngle, distanceFactor]
+  );
+
+  const xOutputRange = React.useMemo(() => {
+    let xOutputRange1: number[];
+    if (
+      animationDirection === 'diagonalDownRight' ||
+      animationDirection === 'diagonalTopLeft'
+    ) {
+      xOutputRange1 =
+        animationDirection === 'diagonalDownRight'
+          ? [-sinComponent, sinComponent]
+          : [sinComponent, -sinComponent];
+    } else {
+      xOutputRange1 =
+        animationDirection === 'diagonalDownLeft'
+          ? [-sinComponent, sinComponent]
+          : [sinComponent, -sinComponent];
+      if (mainDimension === boneHeight && boneWidth !== boneHeight) {
+        xOutputRange1.reverse();
+      }
+    }
+    return xOutputRange1;
+  }, [animationDirection, boneHeight, boneWidth, mainDimension, sinComponent]);
+
+  const yOutputRange = React.useMemo(() => {
+    let yOutputRange1: number[];
+    if (
+      animationDirection === 'diagonalDownRight' ||
+      animationDirection === 'diagonalTopLeft'
+    ) {
+      yOutputRange1 =
+        animationDirection === 'diagonalDownRight'
+          ? [-cosComponent, cosComponent]
+          : [cosComponent, -cosComponent];
+    } else {
+      yOutputRange1 =
+        animationDirection === 'diagonalDownLeft'
+          ? [cosComponent, -cosComponent]
+          : [-cosComponent, cosComponent];
+      if (mainDimension === boneHeight && boneWidth !== boneHeight) {
+        yOutputRange1.reverse();
+      }
+    }
+    return yOutputRange1;
+  }, [animationDirection, boneHeight, boneWidth, cosComponent, mainDimension]);
+
+  const translateXAnim11 = useDerivedValue(() => {
+    return interpolate(animationValue.value, [0, 1], xOutputRange);
+  }, [animationValue.value, xOutputRange]);
+
+  const translateYAnim11 = useDerivedValue(() => {
+    return interpolate(animationValue.value, [0, 1], yOutputRange);
+  }, [animationValue.value, yOutputRange]);
 
   const transformStyle = useAnimatedStyle(() => {
     if (
@@ -146,20 +258,16 @@ function ShiverBone({
       animationDirection === 'horizontalLeft' ||
       animationDirection === 'horizontalRight'
     ) {
-      const interpolatedPosition = interpolateNode(animationValue.value, {
-        inputRange: [0, 1],
-        outputRange: positionRange,
-      });
       if (
         animationDirection === 'verticalTop' ||
         animationDirection === 'verticalDown'
       ) {
         return {
-          transform: [{ translateY: interpolatedPosition }],
+          transform: [{ translateY: translateYAnim1.value }],
         };
       }
       return {
-        transform: [{ translateX: interpolatedPosition }],
+        transform: [{ translateX: translateYAnim1.value }],
       };
     }
     if (
@@ -168,81 +276,52 @@ function ShiverBone({
       animationDirection === 'diagonalDownLeft' ||
       animationDirection === 'diagonalTopLeft'
     ) {
-      const diagonal = Math.sqrt(
-        boneHeight * boneHeight + boneWidth * boneWidth
-      );
-      const mainDimension = Math.max(boneHeight, boneWidth);
-      const oppositeDimension =
-        mainDimension === boneWidth ? boneHeight : boneWidth;
-      const diagonalAngle = Math.acos(mainDimension / diagonal);
-      let rotateAngle =
-        animationDirection === 'diagonalDownRight' ||
-        animationDirection === 'diagonalTopLeft'
-          ? Math.PI / 2 - diagonalAngle
-          : Math.PI / 2 + diagonalAngle;
-      const additionalRotate =
-        animationDirection === 'diagonalDownRight' ||
-        animationDirection === 'diagonalTopLeft'
-          ? 2 * diagonalAngle
-          : -2 * diagonalAngle;
-      const distanceFactor = (diagonal + oppositeDimension) / 2;
-      if (mainDimension === boneWidth && boneWidth !== boneHeight)
-        rotateAngle += additionalRotate;
-      const sinComponent = Math.sin(diagonalAngle) * distanceFactor;
-      const cosComponent = Math.cos(diagonalAngle) * distanceFactor;
-      let xOutputRange: number[];
-      let yOutputRange: number[];
-      if (
-        animationDirection === 'diagonalDownRight' ||
-        animationDirection === 'diagonalTopLeft'
-      ) {
-        xOutputRange =
-          animationDirection === 'diagonalDownRight'
-            ? [-sinComponent, sinComponent]
-            : [sinComponent, -sinComponent];
-        yOutputRange =
-          animationDirection === 'diagonalDownRight'
-            ? [-cosComponent, cosComponent]
-            : [cosComponent, -cosComponent];
-      } else {
-        xOutputRange =
-          animationDirection === 'diagonalDownLeft'
-            ? [-sinComponent, sinComponent]
-            : [sinComponent, -sinComponent];
-        yOutputRange =
-          animationDirection === 'diagonalDownLeft'
-            ? [cosComponent, -cosComponent]
-            : [-cosComponent, cosComponent];
-        if (mainDimension === boneHeight && boneWidth !== boneHeight) {
-          xOutputRange.reverse();
-          yOutputRange.reverse();
-        }
-      }
-      let translateX = interpolateNode(animationValue.value, {
-        inputRange: [0, 1],
-        outputRange: xOutputRange,
-      });
-      let translateY = interpolateNode(animationValue.value, {
-        inputRange: [0, 1],
-        outputRange: yOutputRange,
-      });
-      // swapping the translates if width is the main dim
-      if (mainDimension === boneWidth)
-        [translateX, translateY] = [translateY, translateX];
       const rotate = `${rotateAngle}rad`;
-      return { transform: [{ translateX, translateY, rotate }] };
+      if (mainDimension === boneWidth) {
+        return {
+          transform: [
+            {
+              translateX: translateYAnim11.value,
+              translateY: translateXAnim11.value,
+              rotate,
+            },
+          ],
+        };
+      }
+
+      return {
+        transform: [
+          {
+            translateX: translateXAnim11.value,
+            translateY: translateYAnim11.value,
+            rotate,
+          },
+        ],
+      };
     }
 
     return {
       transform: [],
     };
   }, [
+    translateXAnim11.value,
+    translateYAnim11.value,
+    translateYAnim1.value,
     animationDirection,
-    positionRange,
-    animationValue.value,
-    boneHeight,
-    boneWidth,
   ]);
+
+  const gradientWidth = React.useMemo(() => {
+    let width = boneWidth;
+    if (boneHeight < boneWidth) width *= 1.5;
+    return width;
+  }, [boneHeight, boneWidth]);
+
+  const gradientHeight = React.useMemo(() => {
+    let height = boneHeight;
+    if (boneHeight >= boneWidth) height *= 1.5;
+
+    return height;
+  }, [boneHeight, boneWidth]);
 
   const gradientSizeStyle = useAnimatedStyle(() => {
     if (
@@ -251,14 +330,10 @@ function ShiverBone({
       animationDirection === 'diagonalTopRight' ||
       animationDirection === 'diagonalTopLeft'
     ) {
-      let width = boneWidth;
-      let height = boneHeight;
-      if (boneHeight >= boneWidth) height *= 1.5;
-      else width *= 1.5;
-      return { width, height };
+      return { width: gradientWidth, height: gradientHeight };
     }
     return {};
-  }, [animationDirection, boneWidth, boneHeight]);
+  }, [animationDirection, gradientHeight, gradientWidth]);
 
   return (
     <View key={boneLayout.key || key} style={boneStyle1}>
